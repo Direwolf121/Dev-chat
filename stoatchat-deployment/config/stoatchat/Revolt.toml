@@ -1,0 +1,143 @@
+# Stoatchat Configuration File
+# This file configures the main backend services
+
+[database]
+# MongoDB connection URI
+# Format: mongodb://username:password@host:port/database?authSource=admin
+mongodb_uri = "mongodb://stoatchat:stoatchat_password@mongodb:27017/stoatchat?authSource=admin"
+
+# Redis connection URI
+# Format: redis://[:password@]host:port[/database]
+redis_uri = "redis://:stoatchat_redis_pass@redis:6379"
+
+[api]
+# API server configuration
+host = "0.0.0.0"
+port = 8000
+
+# WebSocket server configuration
+[websocket]
+host = "0.0.0.0"
+port = 9000
+
+[security]
+# JWT secret for token signing
+# Generate a strong random string
+jwt_secret = "your-super-secret-jwt-key-change-this"
+
+# VAPID keys for push notifications
+# Generate using: ./target/release/bonfire vapid
+vapid_private_key = ""
+vapid_public_key = ""
+
+[external_services]
+# Autumn file storage service
+autumn_url = "http://autumn:5000"
+
+# January image processing service
+january_url = "http://january:5001"
+
+# Gifbox GIF processing service
+gifbox_url = "http://gifbox:5002"
+
+[features]
+# Enable user registration
+enable_registration = true
+
+# Enable invite-only registration
+enable_invites = false
+
+# Maximum file upload size in bytes
+max_file_size = 52428800  # 50MB
+
+# Maximum number of servers per user
+max_servers_per_user = 100
+
+# Maximum number of channels per server
+max_channels_per_server = 500
+
+# Maximum number of members per server
+max_members_per_server = 10000
+
+[limits]
+# Rate limiting configuration
+# Number of requests per minute
+requests_per_minute = 60
+
+# Message rate limiting
+messages_per_minute = 30
+
+# File upload rate limiting
+uploads_per_hour = 100
+
+[logging]
+# Log level: debug, info, warn, error
+level = "info"
+
+# Log format: json, pretty
+format = "pretty"
+
+# Enable request logging
+enable_request_logging = true
+
+[notifications]
+# Enable email notifications
+enable_email = false
+
+# SMTP configuration (if email is enabled)
+# smtp_host = "smtp.example.com"
+# smtp_port = 587
+# smtp_user = "notifications@example.com"
+# smtp_password = "your-smtp-password"
+# smtp_from = "Stoatchat <notifications@stoat.chat>"
+
+[instance]
+# Instance name and description
+name = "Stoatchat"
+description = "Self-hosted Stoatchat instance"
+
+# Instance URL
+url = "http://localhost:3000"
+
+# Terms of service and privacy policy URLs
+# terms_url = "http://localhost:3000/terms"
+# privacy_url = "http://localhost:3000/privacy"
+
+# Contact email
+contact_email = "admin@stoat.chat"
+
+[captcha]
+# Enable CAPTCHA for registration
+enable_captcha = false
+
+# hCAPTCHA site key
+# hcaptcha_site_key = "your-hcaptcha-site-key"
+
+# hCAPTCHA secret key
+# hcaptcha_secret_key = "your-hcaptcha-secret-key"
+
+[livekit]
+# LiveKit configuration for voice/video calls
+# enable_livekit = false
+# livekit_api_key = "your-livekit-api-key"
+# livekit_api_secret = "your-livekit-api-secret"
+# livekit_ws_url = "wss://your-livekit-server.com"
+
+[giphy]
+# Giphy API configuration for GIF search
+# giphy_api_key = "your-giphy-api-key"
+
+[github]
+# GitHub OAuth configuration
+# github_client_id = "your-github-client-id"
+# github_client_secret = "your-github-client-secret"
+
+[google]
+# Google OAuth configuration
+# google_client_id = "your-google-client-id"
+# google_client_secret = "your-google-client-secret"
+
+[discord]
+# Discord OAuth configuration
+# discord_client_id = "your-discord-client-id"
+# discord_client_secret = "your-discord-client-secret"

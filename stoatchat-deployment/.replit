@@ -1,0 +1,155 @@
+# Stoatchat Deployment - Replit Configuration
+
+# Main entry point for the deployment
+entrypoint = "scripts/start.sh"
+
+# Hidden files in the Replit file explorer
+hidden = [".git", ".config", "package.json", "package-lock.json", "node_modules", "vendor", ".env", ".env.local", ".env.production", ".env.staging"]
+
+# Interpreters for different file types
+[interpreters]
+[interpreters.c]
+extension = "c"
+command = "gcc -o $file $file.c && ./$file"
+
+[interpreters.cpp]
+extension = "cpp"
+command = "g++ -o $file $file.cpp && ./$file"
+
+[interpreters.py]
+extension = "py"
+command = "python3 $file"
+
+[interpreters.js]
+extension = "js"
+command = "node $file"
+
+[interpreters.ts]
+extension = "ts"
+command = "npx ts-node $file"
+
+[interpreters.sh]
+extension = "sh"
+command = "bash $file"
+
+[interpreters.ruby]
+extension = "rb"
+command = "ruby $file"
+
+[interpreters.go]
+extension = "go"
+command = "go run $file"
+
+[interpreters.rust]
+extension = "rs"
+command = "rustc $file && ./$(basename $file .rs)"
+
+# Language pack
+[languages]
+
+[languages.rust]
+pattern = "**/*.rs"
+
+[languages.rust.languageServer]
+start = "rust-analyzer"
+
+[languages.typescript]
+pattern = "**/*.ts"
+
+[languages.typescript.languageServer]
+start = "typescript-language-server --stdio"
+
+[languages.javascript]
+pattern = "**/*.js"
+
+[languages.javascript.languageServer]
+start = "typescript-language-server --stdio"
+
+[languages.html]
+pattern = "**/*.html"
+
+[languages.css]
+pattern = "**/*.css"
+
+[languages.json]
+pattern = "**/*.json"
+
+[languages.toml]
+pattern = "**/*.toml"
+
+[languages.yaml]
+pattern = "**/*.yaml"
+
+[languages.yml]
+pattern = "**/*.yml"
+
+[languages.dockerfile]
+pattern = "**/Dockerfile*"
+
+[languages.markdown]
+pattern = "**/*.md"
+
+[languages.python]
+pattern = "**/*.py"
+
+[languages.python.languageServer]
+start = "pyright-langserver --stdio"
+
+[languages.bash]
+pattern = "**/*.sh"
+
+# Deployment configuration
+[deployment]
+deploymentTarget = "cloudrun"
+build = ["sh", "scripts/build.sh"]
+run = ["sh", "scripts/start.sh"]
+
+# Environment variables
+[env]
+RUST_BACKTRACE = "1"
+NODE_ENV = "production"
+
+# Ports configuration
+[ports]
+# Main web application
+3000 = "Main Web App"
+# Admin panel
+3001 = "Admin Panel"
+# Landing page
+3002 = "Landing Page"
+# Developer wiki
+3003 = "Developer Wiki"
+# Backend API
+8000 = "Backend API"
+# WebSocket
+9000 = "WebSocket Server"
+# File storage
+5000 = "File Storage"
+# Image processing
+5001 = "Image Processing"
+# GIF processing
+5002 = "GIF Processing"
+# Monitoring
+3004 = "Grafana Dashboard"
+
+# Database ports (internal only)
+27017 = "MongoDB"
+6379 = "Redis"
+5672 = "RabbitMQ"
+15672 = "RabbitMQ Management"
+9090 = "Prometheus"
+
+# Nix configuration
+[nix]
+channel = "stable-23_11"
+
+# Packager configuration
+[packager]
+language = "rust"
+
+[packager.features]
+packageSearch = true
+
+# Unit testing
+[unitTest]
+language = "rust"

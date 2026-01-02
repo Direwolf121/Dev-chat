@@ -1,0 +1,321 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: stoatchat-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-stoatchat}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-stoatchat_password}
+      MONGO_INITDB_DATABASE: stoatchat
+    volumes:
+      - mongodb_data:/data/db
+      - ./config/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    networks:
+      - stoatchat-internal
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: stoatchat-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-stoatchat_redis_pass}
+    volumes:
+      - redis_data:/data
+    networks:
+      - stoatchat-internal
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: stoatchat-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-stoatchat}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-stoatchat_mq_pass}
+      RABBITMQ_DEFAULT_VHOST: stoatchat
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - stoatchat-internal
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Stoatchat Backend Service
+  stoatchat-backend:
+    build:
+      context: ./stoatchat
+      dockerfile: Dockerfile
+      args:
+        RUST_VERSION: 1.70
+    container_name: stoatchat-backend
+    restart: unless-stopped
+    environment:
+      # Database Configuration
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-stoatchat}:${MONGO_ROOT_PASSWORD:-stoatchat_password}@mongodb:27017/stoatchat?authSource=admin
+      REDIS_URI: redis://:${REDIS_PASSWORD:-stoatchat_redis_pass}@redis:6379
+      
+      # API Configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      WS_HOST: 0.0.0.0
+      WS_PORT: 9000
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      
+      # External Services
+      AUTUMN_URL: http://autumn:5000
+      JANUARY_URL: http://january:5001
+      GIFBOX_URL: http://gifbox:5002
+      
+      # Features
+      ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
+      ENABLE_INVITES: ${ENABLE_INVITES:-false}
+      
+      # RabbitMQ
+      AMQP_URI: amqp://${RABBITMQ_USER:-stoatchat}:${RABBITMQ_PASSWORD:-stoatchat_mq_pass}@rabbitmq:5672/stoatchat
+    volumes:
+      - ./config/stoatchat/Revolt.toml:/app/Revolt.toml:ro
+      - ./data/uploads:/app/uploads
+    networks:
+      - stoatchat-internal
+      - stoatchat-external
+    ports:
+      - "8000:8000"  # API
+      - "9000:9000"  # WebSocket
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # File Storage Service (Autumn)
+  autumn:
+    build:
+      context: ./stoatchat
+      dockerfile: Dockerfile
+      target: autumn
+    container_name: stoatchat-autumn
+    restart: unless-stopped
+    environment:
+      AUTUMN_MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:-stoatchat}:${MONGO_ROOT_PASSWORD:-stoatchat_password}@mongodb:27017/autumn?authSource=admin
+      AUTUMN_S3_REGION: ${AUTUMN_S3_REGION:-us-east-1}
+      AUTUMN_S3_ENDPOINT: ${AUTUMN_S3_ENDPOINT:-}
+      AUTUMN_S3_BUCKET: ${AUTUMN_S3_BUCKET:-stoatchat-uploads}
+      AUTUMN_S3_ACCESS_KEY: ${AUTUMN_S3_ACCESS_KEY:-}
+      AUTUMN_S3_SECRET_KEY: ${AUTUMN_S3_SECRET_KEY:-}
+    volumes:
+      - ./data/uploads:/app/uploads
+    networks:
+      - stoatchat-internal
+      - stoatchat-external
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # Image Processing Service (January)
+  january:
+    build:
+      context: ./stoatchat
+      dockerfile: Dockerfile
+      target: january
+    container_name: stoatchat-january
+    restart: unless-stopped
+    environment:
+      JANUARY_MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:-stoatchat}:${MONGO_ROOT_PASSWORD:-stoatchat_password}@mongodb:27017/january?authSource=admin
+      JANUARY_AUTUMN_URL: http://autumn:5000
+    networks:
+      - stoatchat-internal
+      - stoatchat-external
+    ports:
+      - "5001:5001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      autumn:
+        condition: service_started
+
+  # GIF Processing Service (Gifbox)
+  gifbox:
+    build:
+      context: ./stoatchat
+      dockerfile: Dockerfile
+      target: gifbox
+    container_name: stoatchat-gifbox
+    restart: unless-stopped
+    environment:
+      GIFBOX_MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:-stoatchat}:${MONGO_ROOT_PASSWORD:-stoatchat_password}@mongodb:27017/gifbox?authSource=admin
+      GIFBOX_AUTUMN_URL: http://autumn:5000
+    networks:
+      - stoatchat-internal
+      - stoatchat-external
+    ports:
+      - "5002:5002"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      autumn:
+        condition: service_started
+
+  # Main Web Application
+  web-app:
+    build:
+      context: ./for-legacy-web
+      dockerfile: Dockerfile
+    container_name: stoatchat-web-app
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:9000
+      VITE_AUTUMN_URL: http://localhost:5000
+      VITE_APP_NAME: Stoatchat
+      VITE_APP_DESCRIPTION: Self-hosted Stoatchat instance
+    networks:
+      - stoatchat-external
+    ports:
+      - "3000:3000"
+    depends_on:
+      stoatchat-backend:
+        condition: service_healthy
+
+  # Admin Panel
+  admin-panel:
+    build:
+      context: ./service-admin-panel
+      dockerfile: Dockerfile
+    container_name: stoatchat-admin-panel
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-admin-secret-key}
+    networks:
+      - stoatchat-external
+    ports:
+      - "3001:3000"
+    depends_on:
+      stoatchat-backend:
+        condition: service_healthy
+
+  # Landing Page
+  landing-page:
+    build:
+      context: ./stoat.chat
+      dockerfile: Dockerfile
+    container_name: stoatchat-landing-page
+    restart: unless-stopped
+    environment:
+      PUBLIC_API_URL: http://localhost:8000
+    networks:
+      - stoatchat-external
+    ports:
+      - "3002:3000"
+
+  # Developer Wiki
+  developer-wiki:
+    image: nginx:alpine
+    container_name: stoatchat-developer-wiki
+    restart: unless-stopped
+    volumes:
+      - ./developer-wiki:/usr/share/nginx/html:ro
+      - ./config/nginx/wiki.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - stoatchat-external
+    ports:
+      - "3003:80"
+
+  # Reverse Proxy (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: stoatchat-nginx
+    restart: unless-stopped
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/sites:/etc/nginx/conf.d:ro
+      - ./data/ssl:/etc/ssl:ro
+    networks:
+      - stoatchat-external
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web-app
+      - admin-panel
+      - landing-page
+      - developer-wiki
+      - stoatchat-backend
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: stoatchat-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - stoatchat-internal
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: stoatchat-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana:/etc/grafana/provisioning:ro
+    networks:
+      - stoatchat-internal
+    ports:
+      - "127.0.0.1:3004:3000"
+
+volumes:
+  mongodb_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  stoatchat-internal:
+    driver: bridge
+    internal: true
+  stoatchat-external:
+    driver: bridge
